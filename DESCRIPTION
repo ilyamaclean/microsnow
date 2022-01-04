@@ -1,0 +1,38 @@
+Package: microsnow
+Type: Package
+Title: Below or above canopy microclimate modelling with R
+Version: 0.1.0
+Authors@R: c(
+    person("Ilya", "Maclean", email = "i.m.d.maclean@exeter.ac.uk", role = "cre"),
+    person("Vilna", "Tyystjärvi", email = "vilna.tyystjarvi@helsinki.fi", role = "aut"))
+Maintainer: Ilya M. D. Maclean <i.m.d.maclean@exeter.ac.uk>
+Description: The functions in the micrownow package contain tools for 
+    spatially and temporally modelling snow depth, snow density, snow temperature and 
+    air temperatureand relative humidity above snow. Coupled with the microclimf
+    package, it includes a complete set of tools for modelling microclimate in any 
+    terrestrial environment and is the add-on to microclimf that enables microclimate
+    to be modelled in snow environments. 
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Roxygen: list(markdown = TRUE)
+Remotes: ilyamaclean/microclimf,
+    mrke/NicheMapR, ilyamaclean/microctools
+Imports: sp,
+    sf,
+    raster,
+    rgdal,
+    stats,
+    microctools,
+    microclimf
+Suggests: knitr,
+    rmarkdown,
+    plotly,
+	  testthat,
+	  NicheMapR
+VignetteBuilder: knitr
+URL: https://github.com/ilyamaclean/microclimc
+BugReports: http://github.com/microclimc/issues
+Depends: 
+    R (>= 2.10)
