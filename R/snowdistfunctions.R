@@ -418,6 +418,7 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' @param weather a data.frame of weather variables (see details).
 #' @param precd a vector of daily precipitation (mm).
 #' @param dtm a raster of elevations (m). the x and y dimensions of the raster must also be in metres
+#' @param snowdepth a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm, across the scene
 #' @param pai a single numeric value, raster or array of plant area index values
 #' @param hgt a raster of vegetation heights
 #' @param STparams snow temperature model coefficients as derived by [fitsnowtemp()]
@@ -442,9 +443,9 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' @param initdepth single numeric value or matrix of initial snow depths at start of model run
 #' @param out optinal variable indicating whether to return hourly or daily snow depths (default is hourly)
 #' @return a list of the following:
-#' @return `gsnowdepth` predicted ground snow depth (cm)
-#' @return `canswe` predicted canopy snow water equivalent (mm / m^2)
-#' @return `snowtempG` predicted ground snow surface temperature (deg C)
+#' @return `gsnowdepth` array of predicted ground snow depth (cm) across the scene
+#' @return `canswe` array of predicted canopy snow water equivalent (mm / m^2) across the scene
+#' @return `snowtempG` array of predicted ground snow surface temperature (deg C) across the scene
 #' @details #' @details The format and and units of `weather` must follow that in the example
 #' dataset `climdata`. The paramater `snowenv` is used to compute snow density
 #' following Sturm et al (2010) J Hydrometeorology 11: 1380-1393. The leaf distribution angle
@@ -468,7 +469,7 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' plot(raster(msnowdepth1))
 #' plot(raster(msnowdepth2))
 #' plot(raster(snowdif))
-modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, plai = 0.3,
+modelsnowdepth<-function(weather, precd, snowdepth, dtm, pai, hgt, STparams, meltfact=NA, plai = 0.3,
                          x = 1, lat = NA, long = NA, snowenv = "Taiga", tpi_radius = 200, tfact = 10,
                          snowem=0.99, zmin=0.002, umin=0.5, astc=1.5, spatialmelt = FALSE,
                          Sh = 6.3, zu = 2, xyf = NA, merid = 0, dst = 0, initdepth = 0, out = "hourly") {
