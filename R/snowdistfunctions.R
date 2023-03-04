@@ -499,7 +499,7 @@ modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, p
   me<-min(dim(dtm)[1:2]) # extent
   if (spatialmelt) {
     melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgta,snowdepth,snowenv,meltfact,
-                    STparams,snowem,zo,zmin,umin,astc,xyf,initdepth,dint,merid,dst)
+                    STparams,snowem,zu,zmin,umin,astc,xyf,initdepth,dint,merid,dst)
   } else {
     mh<-snp$snowmelt
     md<-matrix(mh,ncol=24,byrow=TRUE)
