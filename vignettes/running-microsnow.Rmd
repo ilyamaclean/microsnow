@@ -56,7 +56,7 @@ STparams<-fitsnowtemp(climdata,precd,nmrout$SNOWDEP,nmrout$SNOWTEMP)
 # (red = NicheMapR output, black = model emulator)
 meltfact<-fitsnowdepth(climdata,nmrout$SNOWDEP,precd,STparams=STparams)$meltfact
 # Run snow model with defaults, but allowing spatially variable snow melt (takes ~100 seconds)
-sda<-modelsnowdepth(climdata,precd,dtm,pai,hgt,STparams,meltfact,spatialmelt = TRUE)
+sda<-modelsnowdepth(climdata,precd,nmrout$SNOWDEP,dtm,pai,hgt,STparams,meltfact,spatialmelt = TRUE)
 # plot mean snow depth
 msnowdep<-apply(sda$gsnowdepth,c(1,2),mean)
 rsnowdep<-raster(msnowdep,template=dtm)
