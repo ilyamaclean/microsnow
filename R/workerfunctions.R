@@ -172,7 +172,7 @@
   psx<-lnr*psi_h
   g<-(0.4*43*uf)/(ln+psx)
   sel<-which(g<gmin)
-  g[sel]<-gmin[sel]
+  g[sel]<-gmin
   sel<-which(g>1e10)
   g[sel]<-1e10
   g
