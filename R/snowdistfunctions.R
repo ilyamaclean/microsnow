@@ -523,8 +523,8 @@ modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, p
   we2<-.winddaily(weather)
   u2<-.winds(we2,dtm,hor)
   # Calculate roughness lengths
-  d<-.zeroplanedis(.rta(hgt,ndays),pai)
-  zm<-.roughlength(.rta(hgt,ndays),pai)
+  d<-.zeroplanedis(.rta(hgt,ndays*24),pai)
+  zm<-.roughlength(.rta(hgt,ndays*24),pai)
   d<-.roughresample(d,dtm,xyf,zmin*6.5)
   zm<-.roughresample(zm,dtm,xyf,zmin)
   # Calculate topographic positioning index
