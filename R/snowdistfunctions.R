@@ -148,10 +148,10 @@
 #' Calculates thermal conductivity to ground snow surface
 .gHaG<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather) {
   snowd<-.vta(snowdepth,dtm)
-  zpd<-snowd-0.2*zmin
+  zpd<-(snowd-0.2)*zmin
   zpd[zpd<6.5*zmin]<-6.5*zmin
   # winds
-  uf<-(0.4*u2)/log((zu-zpd)/zmin)
+  uf<-(0.4*u2)#/log((zu-zpd)/zmin)
   # Compute wind speed at top of canopy
   l_m<-.mixinglength(hgta,pai,zmin)
   tp<-0.2*pai*hgta
@@ -185,10 +185,10 @@
 #' Calculates thermal conductivity to canopy snow surface
 .gHaC<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather,dint,xyf) {
   snowd<-.vta(snowdepth,dtm)
-  zpd<-snowd-0.2*zmin
+  zpd<-(snowd-0.2)*zmin
   zpd[zpd<6.5*zmin]<-6.5*zmin
   # winds
-  uf<-(0.4*u2)/log((zu-zpd)/zmin)
+  uf<-(0.4*u2)#/log((zu-zpd)/zmin)
   # Roughness lengths and conductivity
   da<-.zeroplanedis(hgta,pai)
   zma<-.roughlength(hgta,pai)
