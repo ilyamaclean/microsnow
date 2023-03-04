@@ -9,6 +9,8 @@ modelsnowdepth(
   precd,
   snowdepth,
   dtm,
+  slr = NA,
+  apr = NA,
   pai,
   hgt,
   STparams,
@@ -42,6 +44,10 @@ modelsnowdepth(
 \item{snowdepth}{a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm, across the scene}
 
 \item{dtm}{a raster of elevations (m). the x and y dimensions of the raster must also be in metres}
+
+\item{slr}{an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
+
+\item{apr}{an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
 
 \item{pai}{a single numeric value, raster or array of plant area index values}
 
