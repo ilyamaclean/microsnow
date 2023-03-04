@@ -581,7 +581,7 @@ modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, p
   }
   gsnowdepth<-swe/.vta(phs*10,dtm)
   if (out == "hourly") {
-    snowdepth<-.ehr(gsnowdepth)
+    gsnowdepth<-.ehr(gsnowdepth)
     canswe<-.ehr(canswe)
   }
   if (spatialmelt) {
