@@ -233,7 +233,7 @@
   ad
 }
 #' Computes snow melt when snow is an array
-.snowmelt <- function(weather,precd,dtm,lat,long,pai,x,hgta,snowdepth,snowenv="Taiga",
+.snowmelt <- function(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv="Taiga",
                       meltfact=0.115,STparams,snowem=0.99,zu=2,zmin=0.002,umin=0.5,
                       astc=1.5,xyf=10,initdepth=0,dint=24,merid=0,dst=0,slr=NA,apr=NA) {
   # Set snow depth to metres
@@ -502,7 +502,7 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   af<-round(tpi_radius/reso,0)
   me<-min(dim(dtm)[1:2]) # extent
   if (spatialmelt) {
-    melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgta,snowdepth,snowenv,meltfact,
+    melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv,meltfact,
                     STparams,snowem,zu,zmin,umin,astc,xyf,initdepth,dint,merid,dst,
                     slr,apr)
   } else {
