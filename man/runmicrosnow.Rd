@@ -9,6 +9,8 @@ runmicrosnow(
   precd,
   reqhgt,
   dtm,
+  slr = NA,
+  apr = NA,
   pai,
   plai = 0.3,
   hgt,
@@ -43,6 +45,10 @@ runmicrosnow(
 \item{reqhgt}{height above ground for which to return temperatures and relative humidities (m)}
 
 \item{dtm}{a raster of elevations (m). the x and y dimensions of the raster must also be in metres}
+
+\item{slr}{an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
+
+\item{apr}{an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
 
 \item{pai}{a single numeric value, raster or array of plant area index values}
 

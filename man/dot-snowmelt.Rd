@@ -12,6 +12,7 @@
   long,
   pai,
   x,
+  hgt,
   hgta,
   snowdepth,
   snowenv = "Taiga",
