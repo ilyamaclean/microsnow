@@ -1,4 +1,4 @@
-.Tbelow<-function(weather,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,
+.Tbelow<-function(weather,precd,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,
                   hgta,x,lw,da,zma,zo,snowem,umin,zmin,merid,dst,slr=NA,apr=NA) {
   n<-length(weather$temp)
   # Compute wind fraction velocity
@@ -206,7 +206,7 @@ runmicrosnow <- function(weather, precd, reqhgt, dtm, slr = NA, apr = NA, pai, p
   Tz<-Tze$Tz
   ea<-Tze$ea
   cat("Computing temperature and humidity below canopy\n")
-  Tzbe<-.Tbelow(weather,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,hgta,
+  Tzbe<-.Tbelow(weather,precd,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,hgta,
                 x,lw,da,zma,zo,snowem,umin,zmin,merid,dst,slr,apr)
   Tzb<-Tzbe$Tz
   eab<-Tzbe$ea
