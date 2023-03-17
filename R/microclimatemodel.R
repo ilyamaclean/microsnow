@@ -1,3 +1,5 @@
+# DK: added arguments `slr` and `apr` to allow for user input
+# DK: looks like `precd` is a required argument, so added that as well
 .Tbelow<-function(weather,precd,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,
                   hgta,x,lw,da,zma,zo,snowem,umin,zmin,merid,dst,slr=NA,apr=NA) {
   n<-length(weather$temp)
@@ -43,6 +45,7 @@
   paia[paia<0]<-0
   paia[is.na(paia)]<-0
   # Calculate absorbed radiation
+  # DK: added arguments `slr` and `apr` to allow for user input
   Rabs<-.snowrad(weather,dtm,hor,lat,long,paia,x,snowalb,snowem,merid,dst,slr,apr)$Rabsc
   # Cap conductivity
   zpd<-6.5*zmin
@@ -156,6 +159,7 @@
 #'                            STparams=STparams,spatialmelt = TRUE)
 #' # Plot snow temperature at mid day on 1st Jan
 #' plot(raster(microsnowout$Tz[,,13]))
+# DK: added arguments `slr` and `apr` to allow for user input
 runmicrosnow <- function(weather, precd, reqhgt, dtm, slr = NA, apr = NA, pai, plai = 0.3, hgt, x = 1, lw = 0.05, lat = NA, long = NA,
                          sda = NA, snowenv = "Taiga", STparams, meltfact = NA, tpi_radius = 200, tfact = 10,
                          snowem = 0.99, zmin = 0.002, umin = 0.5, astc = 1.5, spatialmelt = FALSE,

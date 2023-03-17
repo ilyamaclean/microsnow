@@ -172,6 +172,8 @@
   psx<-lnr*psi_h
   g<-(0.4*43*uf)/(ln+psx)
   sel<-which(g<gmin)
+  # DK: Originally was g[sel]<-gmin[sel]. But gmin is just a single constant
+  # (here, 0(. So I don't think we're supposed to select inside gmin
   g[sel]<-gmin
   sel<-which(g>1e10)
   g[sel]<-1e10

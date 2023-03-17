@@ -103,6 +103,7 @@
   zma
 }
 #' Calculates radiation absorbed by snow surface
+# DK: added arguments `slr` and `apr` to allow for user input
 .snowrad<-function(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid=0,dst=0,slr=NA,apr=NA) {
   # Compute solar index
   tme<-as.POSIXlt(weather$obs_time,tz="UTC")
@@ -112,6 +113,7 @@
   k<-.cank(x,.vta(alt*(pi/180),dtm))
   salt<-.vta(alt,dtm)*(pi/180)
   azi<-.solazi(lt,lat,long,jd,merid,dst)
+  # DK: added arguments `slr` and `apr` to allow for user input
   si<-.solarindex(dtm,salt,azi,slr,apr)
   # Compute dni
   sif<-cos((90-alt)*(pi/180))
@@ -150,6 +152,9 @@
   snowd<-.vta(snowdepth,dtm)
   zpd<-snowd-0.2*zmin
   zpd[zpd<6.5*zmin]<-6.5*zmin
+  # DK: To avoid introducing NULL values from taking log, perhaps need
+  # something like:
+  # zpd[zpd<zu]<-zu
   # winds
   uf<-(0.4*u2)/log((zu-zpd)/zmin)
   # Compute wind speed at top of canopy
@@ -186,6 +191,9 @@
 .gHaC<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather,dint,xyf) {
   snowd<-.vta(snowdepth,dtm)
   zpd<-snowd-0.2*zmin
+  # DK: To avoid introducing NULL values from taking log, perhaps need
+  # something like:
+  # zpd[zpd<zu]<-zu
   zpd[zpd<6.5*zmin]<-6.5*zmin
   # winds
   uf<-(0.4*u2)/log((zu-zpd)/zmin)
@@ -233,6 +241,7 @@
   ad
 }
 #' Computes snow melt when snow is an array
+# DK: added arguments `slr` and `apr` to allow for user input
 .snowmelt <- function(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv="Taiga",
                       meltfact=0.115,STparams,snowem=0.99,zu=2,zmin=0.002,umin=0.5,
                       astc=1.5,xyf=10,initdepth=0,dint=24,merid=0,dst=0,slr=NA,apr=NA) {
@@ -249,6 +258,7 @@
   # =====#
   epai<-.epaif(pai,hgt,snowdepth)
   # Calculate absorbed radiation
+  # DK: added arguments `slr` and `apr` to allow for user input
   Rabs<-.snowrad(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid,dst,slr,apr)
   Rabsg<-Rabs$Rabsg
   Rabsc<-Rabs$Rabsc
@@ -471,6 +481,7 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' plot(raster(msnowdepth1))
 #' plot(raster(msnowdepth2))
 #' plot(raster(snowdif))
+# DK: added arg `snowdepth`, and arguments `slr` and `apr` to allow for user input
 modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
                          pai, hgt, STparams, meltfact=NA, plai = 0.3,
                          x = 1, lat = NA, long = NA, snowenv = "Taiga", tpi_radius = 200, tfact = 10,
@@ -502,6 +513,12 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   af<-round(tpi_radius/reso,0)
   me<-min(dim(dtm)[1:2]) # extent
   if (spatialmelt) {
+    # DK:
+    # Perhaps a typo in argument inputs? Originally `zo` was an argument but there's
+    # reason to believe this is `zu`. E.g. later on, within .gHaG() within
+    # .snowmelt(), `zu` is handed to .gturb(), and documentation for gturb() in
+    # microctools (seemingly same function) has default for zu = 2....while here
+    # zo = 24.83485
     melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv,meltfact,
                     STparams,snowem,zu,zmin,umin,astc,xyf,initdepth,dint,merid,dst,
                     slr,apr)
@@ -586,6 +603,7 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   }
   gsnowdepth<-swe/.vta(phs*10,dtm)
   if (out == "hourly") {
+    # DK: presumed typo fix, previously saving to `snowdepth` but now `gsnowdepth`
     gsnowdepth<-.ehr(gsnowdepth)
     canswe<-.ehr(canswe)
   }
