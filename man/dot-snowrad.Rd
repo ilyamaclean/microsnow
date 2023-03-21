@@ -15,7 +15,9 @@
   snowalb,
   snowem,
   merid = 0,
-  dst = 0
+  dst = 0,
+  slr = NA,
+  apr = NA
 )
 }
 \description{

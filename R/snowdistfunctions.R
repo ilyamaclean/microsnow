@@ -103,7 +103,8 @@
   zma
 }
 #' Calculates radiation absorbed by snow surface
-.snowrad<-function(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid=0,dst=0) {
+# DK: added arguments `slr` and `apr` to allow for user input
+.snowrad<-function(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid=0,dst=0,slr=NA,apr=NA) {
   # Compute solar index
   tme<-as.POSIXlt(weather$obs_time,tz="UTC")
   jd<-.jday(tme)
@@ -112,7 +113,8 @@
   k<-.cank(x,.vta(alt*(pi/180),dtm))
   salt<-.vta(alt,dtm)*(pi/180)
   azi<-.solazi(lt,lat,long,jd,merid,dst)
-  si<-.solarindex(dtm,salt,azi)
+  # DK: added arguments `slr` and `apr` to allow for user input
+  si<-.solarindex(dtm,salt,azi,slr,apr)
   # Compute dni
   sif<-cos((90-alt)*(pi/180))
   dni<-(weather$swrad-weather$difrad)/sif
@@ -150,6 +152,9 @@
   snowd<-.vta(snowdepth,dtm)
   zpd<-snowd-0.2*zmin
   zpd[zpd<6.5*zmin]<-6.5*zmin
+  # DK: To avoid introducing NULL values from taking log, perhaps need
+  # something like:
+  # zpd[zpd<zu]<-zu
   # winds
   uf<-(0.4*u2)/log((zu-zpd)/zmin)
   # Compute wind speed at top of canopy
@@ -186,6 +191,9 @@
 .gHaC<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather,dint,xyf) {
   snowd<-.vta(snowdepth,dtm)
   zpd<-snowd-0.2*zmin
+  # DK: To avoid introducing NULL values from taking log, perhaps need
+  # something like:
+  # zpd[zpd<zu]<-zu
   zpd[zpd<6.5*zmin]<-6.5*zmin
   # winds
   uf<-(0.4*u2)/log((zu-zpd)/zmin)
@@ -233,9 +241,10 @@
   ad
 }
 #' Computes snow melt when snow is an array
-.snowmelt <- function(weather,precd,dtm,lat,long,pai,x,hgta,snowdepth,snowenv="Taiga",
+# DK: added arguments `slr` and `apr` to allow for user input
+.snowmelt <- function(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv="Taiga",
                       meltfact=0.115,STparams,snowem=0.99,zu=2,zmin=0.002,umin=0.5,
-                      astc=1.5,xyf=10,initdepth=0,dint=24,merid=0,dst=0) {
+                      astc=1.5,xyf=10,initdepth=0,dint=24,merid=0,dst=0,slr=NA,apr=NA) {
   # Set snow depth to metres
   snowdepth<-snowdepth/100
   # Calculate snow albedo
@@ -249,7 +258,8 @@
   # =====#
   epai<-.epaif(pai,hgt,snowdepth)
   # Calculate absorbed radiation
-  Rabs<-.snowrad(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid,dst)
+  # DK: added arguments `slr` and `apr` to allow for user input
+  Rabs<-.snowrad(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid,dst,slr,apr)
   Rabsg<-Rabs$Rabsg
   Rabsc<-Rabs$Rabsc
   # Calculate conductivities
@@ -418,6 +428,9 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' @param weather a data.frame of weather variables (see details).
 #' @param precd a vector of daily precipitation (mm).
 #' @param dtm a raster of elevations (m). the x and y dimensions of the raster must also be in metres
+#' @param slr an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
+#' @param apr an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
+#' @param snowdepth a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm, across the scene
 #' @param pai a single numeric value, raster or array of plant area index values
 #' @param hgt a raster of vegetation heights
 #' @param STparams snow temperature model coefficients as derived by [fitsnowtemp()]
@@ -442,9 +455,9 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' @param initdepth single numeric value or matrix of initial snow depths at start of model run
 #' @param out optinal variable indicating whether to return hourly or daily snow depths (default is hourly)
 #' @return a list of the following:
-#' @return `gsnowdepth` predicted ground snow depth (cm)
-#' @return `canswe` predicted canopy snow water equivalent (mm / m^2)
-#' @return `snowtempG` predicted ground snow surface temperature (deg C)
+#' @return `gsnowdepth` array of predicted ground snow depth (cm) across the scene
+#' @return `canswe` array of predicted canopy snow water equivalent (mm / m^2) across the scene
+#' @return `snowtempG` array of predicted ground snow surface temperature (deg C) across the scene
 #' @details #' @details The format and and units of `weather` must follow that in the example
 #' dataset `climdata`. The paramater `snowenv` is used to compute snow density
 #' following Sturm et al (2010) J Hydrometeorology 11: 1380-1393. The leaf distribution angle
@@ -468,7 +481,9 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' plot(raster(msnowdepth1))
 #' plot(raster(msnowdepth2))
 #' plot(raster(snowdif))
-modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, plai = 0.3,
+# DK: added arg `snowdepth`, and arguments `slr` and `apr` to allow for user input
+modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
+                         pai, hgt, STparams, meltfact=NA, plai = 0.3,
                          x = 1, lat = NA, long = NA, snowenv = "Taiga", tpi_radius = 200, tfact = 10,
                          snowem=0.99, zmin=0.002, umin=0.5, astc=1.5, spatialmelt = FALSE,
                          Sh = 6.3, zu = 2, xyf = NA, merid = 0, dst = 0, initdepth = 0, out = "hourly") {
@@ -498,8 +513,15 @@ modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, p
   af<-round(tpi_radius/reso,0)
   me<-min(dim(dtm)[1:2]) # extent
   if (spatialmelt) {
-    melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgta,snowdepth,snowenv,meltfact,
-                    STparams,snowem,zo,zmin,umin,astc,xyf,initdepth,dint,merid,dst)
+    # DK:
+    # Perhaps a typo in argument inputs? Originally `zo` was an argument but there's
+    # reason to believe this is `zu`. E.g. later on, within .gHaG() within
+    # .snowmelt(), `zu` is handed to .gturb(), and documentation for gturb() in
+    # microctools (seemingly same function) has default for zu = 2....while here
+    # zo = 24.83485
+    melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv,meltfact,
+                    STparams,snowem,zu,zmin,umin,astc,xyf,initdepth,dint,merid,dst,
+                    slr,apr)
   } else {
     mh<-snp$snowmelt
     md<-matrix(mh,ncol=24,byrow=TRUE)
@@ -581,7 +603,8 @@ modelsnowdepth<-function(weather, precd, dtm, pai, hgt, STparams, meltfact=NA, p
   }
   gsnowdepth<-swe/.vta(phs*10,dtm)
   if (out == "hourly") {
-    snowdepth<-.ehr(gsnowdepth)
+    # DK: presumed typo fix, previously saving to `snowdepth` but now `gsnowdepth`
+    gsnowdepth<-.ehr(gsnowdepth)
     canswe<-.ehr(canswe)
   }
   if (spatialmelt) {

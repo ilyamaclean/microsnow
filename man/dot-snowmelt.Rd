@@ -12,6 +12,7 @@
   long,
   pai,
   x,
+  hgt,
   hgta,
   snowdepth,
   snowenv = "Taiga",
@@ -26,7 +27,9 @@
   initdepth = 0,
   dint = 24,
   merid = 0,
-  dst = 0
+  dst = 0,
+  slr = NA,
+  apr = NA
 )
 }
 \description{

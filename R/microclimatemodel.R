@@ -1,5 +1,7 @@
-.Tbelow<-function(weather,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,
-                  hgta,x,lw,da,zma,zo,snowem,umin,zmin,merid,dst) {
+# DK: added arguments `slr` and `apr` to allow for user input
+# DK: looks like `precd` is a required argument, so added that as well
+.Tbelow<-function(weather,precd,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,
+                  hgta,x,lw,da,zma,zo,snowem,umin,zmin,merid,dst,slr=NA,apr=NA) {
   n<-length(weather$temp)
   # Compute wind fraction velocity
   hor<-.hor2(dtm,2)
@@ -43,7 +45,8 @@
   paia[paia<0]<-0
   paia[is.na(paia)]<-0
   # Calculate absorbed radiation
-  Rabs<-.snowrad(weather,dtm,hor,lat,long,paia,x,snowalb,snowem,merid,dst)$Rabsc
+  # DK: added arguments `slr` and `apr` to allow for user input
+  Rabs<-.snowrad(weather,dtm,hor,lat,long,paia,x,snowalb,snowem,merid,dst,slr,apr)$Rabsc
   # Cap conductivity
   zpd<-6.5*zmin
   zh<-0.2*zmin
@@ -107,6 +110,8 @@
 #' @param precd a vector of daily precipitation (mm).
 #' @param reqhgt height above ground for which to return temperatures and relative humidities (m)
 #' @param dtm a raster of elevations (m). the x and y dimensions of the raster must also be in metres
+#' @param slr an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
+#' @param apr an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
 #' @param pai a single numeric value, raster or array of plant area index values
 #' @param plai a single numeric value, raster or array of the proprotion of plant area index values that are leaves
 #' @param hgt a raster of vegetation heights
@@ -154,7 +159,8 @@
 #'                            STparams=STparams,spatialmelt = TRUE)
 #' # Plot snow temperature at mid day on 1st Jan
 #' plot(raster(microsnowout$Tz[,,13]))
-runmicrosnow <- function(weather, precd, reqhgt, dtm, pai, plai = 0.3, hgt, x = 1, lw = 0.05, lat = NA, long = NA,
+# DK: added arguments `slr` and `apr` to allow for user input
+runmicrosnow <- function(weather, precd, reqhgt, dtm, slr = NA, apr = NA, pai, plai = 0.3, hgt, x = 1, lw = 0.05, lat = NA, long = NA,
                          sda = NA, snowenv = "Taiga", STparams, meltfact = NA, tpi_radius = 200, tfact = 10,
                          snowem = 0.99, zmin = 0.002, umin = 0.5, astc = 1.5, spatialmelt = FALSE,
                          Sh = 6.3, zu = 2, xyf = NA, merid = 0, dst = 0, initdepth = 0) {
@@ -194,7 +200,6 @@ runmicrosnow <- function(weather, precd, reqhgt, dtm, pai, plai = 0.3, hgt, x = 
   zma<-.roughlength(hgta,pai)
   da<-.roughresample(da,dtm,xyf,zmin*6.5,30*dint)
   zma<-.roughresample(zma,dtm,xyf,zmin,30*dint)
-  gsnowdepth<-sda$gsnowdepth/100
   sel<-which(gsnowdepth>da)
   da[sel]<-gsnowdepth[sel]
   zma[sel]<-zmin
@@ -205,8 +210,8 @@ runmicrosnow <- function(weather, precd, reqhgt, dtm, pai, plai = 0.3, hgt, x = 
   Tz<-Tze$Tz
   ea<-Tze$ea
   cat("Computing temperature and humidity below canopy\n")
-  Tzbe<-.Tbelow(weather,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,hgta,
-                x,lw,da,zma,zo,snowem,umin,zmin,merid,dst)
+  Tzbe<-.Tbelow(weather,precd,reqhgt,dtm,lat,long,STparams,gsnowdepth,snowtempG,pai,hgta,
+                x,lw,da,zma,zo,snowem,umin,zmin,merid,dst,slr,apr)
   Tzb<-Tzbe$Tz
   eab<-Tzbe$ea
   selB<-which(hgta>reqhgt)

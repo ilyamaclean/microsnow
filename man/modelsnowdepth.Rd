@@ -7,7 +7,10 @@
 modelsnowdepth(
   weather,
   precd,
+  snowdepth,
   dtm,
+  slr = NA,
+  apr = NA,
   pai,
   hgt,
   STparams,
@@ -38,7 +41,13 @@ modelsnowdepth(
 
 \item{precd}{a vector of daily precipitation (mm).}
 
+\item{snowdepth}{a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm, across the scene}
+
 \item{dtm}{a raster of elevations (m). the x and y dimensions of the raster must also be in metres}
+
+\item{slr}{an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
+
+\item{apr}{an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
 
 \item{pai}{a single numeric value, raster or array of plant area index values}
 
@@ -89,11 +98,11 @@ modelsnowdepth(
 \value{
 a list of the following:
 
-\code{gsnowdepth} predicted ground snow depth (cm)
+\code{gsnowdepth} array of predicted ground snow depth (cm) across the scene
 
-\code{canswe} predicted canopy snow water equivalent (mm / m^2)
+\code{canswe} array of predicted canopy snow water equivalent (mm / m^2) across the scene
 
-\code{snowtempG} predicted ground snow surface temperature (deg C)
+\code{snowtempG} array of predicted ground snow surface temperature (deg C) across the scene
 }
 \description{
 \code{modelsnowdepth} runs the spatial snow model to derive an
