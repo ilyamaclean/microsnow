@@ -9,12 +9,12 @@ modelsnowdepth(
   precd,
   snowdepth,
   dtm,
-  slr = NA,
-  apr = NA,
   pai,
   hgt,
   STparams,
   meltfact = NA,
+  slr = NA,
+  apr = NA,
   plai = 0.3,
   x = 1,
   lat = NA,
@@ -30,10 +30,9 @@ modelsnowdepth(
   Sh = 6.3,
   zu = 2,
   xyf = NA,
-  merid = 0,
-  dst = 0,
   initdepth = 0,
-  out = "hourly"
+  out = "hourly",
+  clump = 0.2
 )
 }
 \arguments{
@@ -41,25 +40,26 @@ modelsnowdepth(
 
 \item{precd}{a vector of daily precipitation (mm).}
 
-\item{snowdepth}{a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm, across the scene}
+\item{snowdepth}{a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm,
+across the scene as e.g. returned by \code{\link[=runNMRSnow]{runNMRSnow()}} or spline interpolated from measurments.}
 
-\item{dtm}{a raster of elevations (m). the x and y dimensions of the raster must also be in metres}
+\item{dtm}{a SpatRast of elevations (m). the x and y dimensions of the raster must also be in metres}
 
-\item{slr}{an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
+\item{pai}{a single numeric value, SpatRast or array of plant area index values}
 
-\item{apr}{an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
-
-\item{pai}{a single numeric value, raster or array of plant area index values}
-
-\item{hgt}{a raster of vegetation heights}
+\item{hgt}{a SpatRast of vegetation heights}
 
 \item{STparams}{snow temperature model coefficients as derived by \code{\link[=fitsnowtemp]{fitsnowtemp()}}}
 
 \item{meltfact}{snow melt coefficient as returned by \code{fitsnowtemp} or \code{getmeltf}. Derived using \code{getmeltf} is not supplied.}
 
-\item{plai}{a single numeric value, raster or array of the proprotion of plant area index values that are leaves}
+\item{slr}{an optional SpatRast of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
 
-\item{x}{optional single numeric value, raster, matrix or array of leaf distribution coefficients}
+\item{apr}{an optional SpatRast of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.}
+
+\item{plai}{a single numeric value, SpatRast or array of the proprotion of plant area index values that are leaves}
+
+\item{x}{optional single numeric value, SpatRast, matrix or array of leaf distribution coefficients}
 
 \item{lat}{latitude of location (decimal degrees). Derived from \code{dtm} is not supplied, so coordinate reference of system of \code{dtm} must be defined.}
 
@@ -87,13 +87,12 @@ modelsnowdepth(
 
 \item{xyf}{number of grid cells over which to smooth vertical wind height profile}
 
-\item{merid}{longitude of local timezone meridian (0 for UTC)}
-
-\item{dst}{an optional numeric value representing the time difference from the timezone meridian (hours, e.g. +1 for British Summer Time if \code{merid} = 0).}
-
 \item{initdepth}{single numeric value or matrix of initial snow depths at start of model run}
 
-\item{out}{optinal variable indicating whether to return hourly or daily snow depths (default is hourly)}
+\item{out}{optional variable indicating whether to return hourly or daily snow depths (default is hourly)}
+
+\item{clump}{a single numeric value or array of values between 0 and 1 indicating the fraction of radiation passing through larger gaps in the canopy,
+( see \code{\link[microclimf:clumpestimate]{microclimf::clumpestimate()}})}
 }
 \value{
 a list of the following:
@@ -116,21 +115,17 @@ following Sturm et al (2010) J Hydrometeorology 11: 1380-1393. The leaf distribu
 coefficient is the ratio of vertical to horizontal projections of leaf foliage (~1 for decidious woodland).
 }
 \examples{
-require(NicheMapR)
-# Derive estimates of snow melt temperature parameters using NicheMapR
-nmrout<-runNMRSnow(climdata,precd,66.215,29.293,ALTT = 360)
-STparams<-fitsnowtemp(climdata,precd,nmrout$SNOWDEP,nmrout$SNOWTEMP)
-meltfact<-fitsnowdepth(climdata,nmrout$SNOWDEP,precd,STparams=STparams)$meltfact
-# Run snow model with defaults (takes 20 seconds)
-mout1<-modelsnowdepth(climdata,precd,dtm,pai,hgt,STparams,meltfact)
+# Run snow model with defaults and inbuilt datasets and model coefficients (takes 20 seconds)
+snd<-nowdepth$snowdepth # snow depth vector
+mout1<-modelsnowdepth(climdata,precd,snd,dtm,pai,hgt,STparams,SDparams$meltfact)
 # Run snow model with defaults, but allowing spatially variable snow melt (takes ~100 seconds)
-mout2<-modelsnowdepth(climdata,precd,dtm,pai,hgt,STparams,meltfact,spatialmelt = TRUE)
+mout2<-modelsnowdepth(climdata,precd,snd,dtm,pai,hgt,STparams,SDparams$meltfact,spatialmelt = TRUE)
 # Compare results
 msnowdepth1<-apply(mout1$gsnowdepth,c(1,2),mean)
 msnowdepth2<-apply(mout2$gsnowdepth,c(1,2),mean)
 snowdif<-msnowdepth2-msnowdepth1
 par(mfrow=c(2,2))
-plot(raster(msnowdepth1))
-plot(raster(msnowdepth2))
-plot(raster(snowdif))
+plot(rast(msnowdepth1))
+plot(rast(msnowdepth2))
+plot(rast(snowdif))
 }

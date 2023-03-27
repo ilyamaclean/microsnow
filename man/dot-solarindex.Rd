@@ -4,7 +4,7 @@
 \alias{.solarindex}
 \title{Calculates the solar coefficient}
 \usage{
-.solarindex(dtm, alt, azi, slr = NA, apr = NA)
+.solarindex(dtm, salt, azi, slr = NA, apr = NA)
 }
 \description{
 Calculates the solar coefficient

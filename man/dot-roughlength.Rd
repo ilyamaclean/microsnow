@@ -2,10 +2,10 @@
 % Please edit documentation in R/workerfunctions.R
 \name{.roughlength}
 \alias{.roughlength}
-\title{Calculate roughness length governing momentum transfer}
+\title{Calculate roughness length}
 \usage{
-.roughlength(hgt, pai, zm0 = 0.003)
+.roughlength(h, pai, d = NA, psi_h = 0)
 }
 \description{
-Calculate roughness length governing momentum transfer
+Calculate roughness length
 }

@@ -42,14 +42,17 @@
   u
 }
 # Calculate daily pai above snow surface where snow depth is a vector
-.epaif <- function(pai,hgt,snowdepth) {
-  n<-length(snowdepth)/24
-  sde<-matrix(snowdepth,ncol=24,byrow=T)
+.epaif <- function(pai,hgt,snowdepth,clump) {
+  # Adjust for snow dpeth
+  nd<-length(snowdepth)/24
+  sde<-matrix(snowdepth,ncol=24)
   sde<-apply(sde,1,mean)
-  epai<-((.rta(hgt,n)-.vta(sde,hgt))/(.rta(hgt,n))*pai)
-  epai[epai<0]<-0
-  epai[is.na(epai)]<-0
-  epai<-.ehr(epai)
+  sde<-.vta(sde,hgt)
+  h<-.rta(hgt,nd)
+  mu<-(h-sde)/h
+  mu[mu<0.001]<-0.001
+  mu[is.na(mu)]<-1
+  epai<-mu*pai
   epai
 }
 # Calculate pai above snow surface where snow depth is an array
@@ -61,7 +64,7 @@
 }
 #' Converts pai to an array if provided a single value or raster
 .unpackpai <- function(pai,n, dtm) {
-  if (class(pai)[1] == "RasterLayer") pai<-.is(pai)
+  if (class(pai)[1] == "SpatRaster") pai<-.is(pai)
   if (length(as.vector(pai)) == 1) pai<-array(pai,dim=dim(dtm))
   if (class(pai)[1] == "matrix") {
     pai<-array(pai,dim=c(dim(pai),1))
@@ -72,150 +75,123 @@
   pai
 }
 #' resamples roughness lengths (or zero-plane displacement) by xyf to smooth
-.roughresample<-function(zm,dtm,xyf,mnval,tint=NA) {
-  if (is.na(tint)) tint<-30
-  zm[is.na(zm)]<-mnval
+.roughresample<-function(zm,dtm,xyf,tint=NA) {
+  if (is.na(tint)) tint<-30*24
   mdm<-trunc(min(dim(dtm)[1:2])/2)
-  if (is.na(xyf)) {
-    xyf<-trunc(pmax(10/res(dtm)[1],10))
-    xyf<-ifelse(xyf>mdm,mdm,xyf)
+  if (xyf > mdm | is.na(xyf)) xyf<-NA
+  if (is.na(xyf) == F) {
+    if (xyf > 1) {
+      n<-dim(zm)[3]
+      nx<-trunc(n/tint)
+      i<-c(0:(nx-1))*tint+1
+      # aggregate and resample each month
+      zma<-array(NA,dim=c(dim(zm)[1:2],nx))
+      for (ii in 1:length(i)) {
+        xx<-rast(zm[,,i[ii]])
+        ext(xx)<-ext(dtm)
+        crs(xx)<-crs(dtm)
+        xx<-aggregate(xx,10,fun=mean)
+        zma[,,ii]<-.is(resample(xx,dtm))
+      }
+      i<-floor((nx/n)*c(0:(n-1))+1)
+      zma<-zma[,,i]
+    } else zma<-zm
+  } else {
+    zmv<-apply(zm,3,mean,na.rm=T)
+    zma<-.vta(zmv,dtm)
   }
-  if (xyf > mdm) {
-    warning(paste0("xyf too large. Setting to ",mdm))
-    xyf<-mdm
-  }
-  n<-dim(zm)[3]
-  nx<-trunc(n/tint) # number of months
-  i<-c(0:(nx-1))*tint+1
-  zm2<-zm[,,i]
-  zma<-zm2
-  zmr<-raster(zm[,,1],template=dtm)
-  # aggregate and resample each month
-  for (i in 1:nx) {
-    xx<-raster(zm2[,,i],template=dtm)
-    xx<-aggregate(xx,xyf)
-    zma[,,i]<-.is(resample(xx,zmr))
-  }
-  zma[zma<mnval]<-mnval
-  # subtitute monthly values back in to days
-  i<-floor((nx/n)*c(0:(n-1))+1)
-  zma<-zma[,,i]
-  zma
+  return(zma)
 }
 #' Calculates radiation absorbed by snow surface
 # DK: added arguments `slr` and `apr` to allow for user input
-.snowrad<-function(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid=0,dst=0,slr=NA,apr=NA) {
-  # Compute solar index
+.snowrad<-function(weather,snowdepth,dtm,hor,lat,long,epai,x,snowalb,snowem,slr=NA,apr=NA,clump=0,clumpd="daily") {
+  # === (1a) Calculate solar altitude
   tme<-as.POSIXlt(weather$obs_time,tz="UTC")
   jd<-.jday(tme)
   lt<-tme$hour+tme$min/60+tme$sec/3600
-  alt<-.solalt(lt,lat,long,jd,merid,dst)
-  k<-.cank(x,.vta(alt*(pi/180),dtm))
+  alt<-.solalt(lt,lat,long,jd,merid=0,dst=0)
   salt<-.vta(alt,dtm)*(pi/180)
-  azi<-.solazi(lt,lat,long,jd,merid,dst)
-  # DK: added arguments `slr` and `apr` to allow for user input
+  azi<-.solazi(lt,lat,long,jd,merid=0,dst=0)
+  # === (1b) Calculate solar index
   si<-.solarindex(dtm,salt,azi,slr,apr)
-  # Compute dni
-  sif<-cos((90-alt)*(pi/180))
-  dni<-(weather$swrad-weather$difrad)/sif
-  dni[dni>1352]<-1352
-  dni[dni<0]<-0
-  dni[is.na(dni)]<-0
-  dni<-.vta(dni,dtm)
-  # Compute skyview and terrain shading
+  # === (1c) Calculate horizon angles
   i<-round(azi/15,0)+1; i[i==25]<-1
   hora<-hor[,,i]
-  # === Calculate terrain shading
+  # === (1d) Calculate terrain shading
   shadowmask<-hora*0+1
   shadowmask[hora>tan(salt)]<-0
   si<-si*shadowmask
-  # === Calculate sky view
+  # === (1e) Get two-stream parameters
+  if (clumpd == "daily")  {
+    cl<-.ehr(clump)
+  } else cl<-clump
+  twostreamp<-.twostreamparams(epai,x,cl,snowalb,snowalb,0,salt*(180/pi),si)
+  # === (1f) Calculate sky view
   msl<-tan(apply(atan(hor),c(1,2),mean))
   svf<-0.5*cos(2*msl)+0.5
-  sva<-.rta(raster(svf),length(jd))
-  # === Calculate direct canopy transmission
-  trdir<-.cantransdir(epai,k,snowalb)
-  trdif<-.cantransdif(epai,snowalb)
-  trlw<-.cantransdif(epai,1-snowem)
-  Rswg<-(trdir*si*dni+trdif*sva*.vta(weather$difrad,dtm))*(1-snowalb)
-  xx<-k*dni
-  xx[xx>1352]<-1352
-  Rswc<-((1-trdir)*xx*si+(1-trdif)*sva*.vta(weather$difrad,dtm))*(1-snowalb)
-  Rlwg<-microctools::canlw(.vta(weather$temp,dtm),epai,(1-snowem),.vta(weather$skyem,dtm))$lwabs
-  Rlwc<-.vta(weather$skyem,dtm)*sva*snowem*5.67*10^-8*(.vta(weather$temp,dtm)+273.15)^4
-  Rabsg<-Rswg+Rlwg
-  Rabsc<-Rswc+Rlwc
-  return(list(Rabsg=Rabsg,Rabsc=Rabsc))
+  sva<-.rta(rast(svf),length(jd))
+  # === (1g) Calculate albedo
+  Kc<-with(twostreamp,kkd$kd/kkd$k0)
+  albd<-with(twostreamp,p1+p2+cl^2*snowalb)
+  albb<-with(twostreamp,p5/sig+p6+p7+cl^Kc*gref2)
+  # radiation
+  dv<-weather$swrad-weather$difrad
+  dirr<-.vta(dv,dtm)/si
+  dirr[is.na(dirr)]<-0
+  difr<-.vta(weather$difrad,dtm)
+  albedo<-(dirr*sin(salt)*albb+difr*albd)/(dirr*si+difr)
+  albedo[is.na(albedo)]<-albd[is.na(albedo)]
+  albedo[albedo>1]<-albd[albedo>1]
+  albedo[albedo>0.99]<-0.99
+  albedo[albedo<0.01]<-0.01
+  # === (1m) Calculate ground absorbed radiation
+  # Shortwave
+  Rbgm<-(1-cl^Kc)*exp(-twostreamp$kkd$kd*epai)+cl^Kc
+  Rdbm<-with(twostreamp,(1-cl^2)*((p8/sig)*exp(-kkd$kd*epai)+p9*exp(-h*epai)+p10*exp(h*epai)))
+  Rddm<-with(twostreamp,(1-cl^2)*(p3*exp(-h*epai)+p4*exp(h*epai))+cl^2)
+  radGsw<-(1-snowalb)*(dirr*si*Rbgm+dirr*sin(salt)*Rdbm+difr*sva*Rddm)
+  radGsw[is.na(radGsw)]<-0
+  radGsw[radGsw<0]<-0
+  # Longwave
+  trd<-(1-cl^2)*exp(-epai)+cl^2
+  tc<-.vta(weather$temp,dtm)
+  skyem<-.vta(weather$skyem,dtm)
+  Rem<-0.97*5.67*10^-8*(tc+273.15)^4 # Longwave emitted
+  lwsky<-skyem*Rem # Longwave radiation down from sky
+  radGlw<-0.97*(trd*sva*lwsky+(1-trd)*Rem+(1-sva)*Rem)
+  # === (1m) Calculate canopy and ground combined absorbed radiation
+  trb<-(1-cl^Kc)*exp(-twostreamp$kkd$kd*epai)+cl^Kc
+  radCsw<-(1-albedo)*(dirr*sin(salt)+sva*difr)
+  radCsw[is.na(radCsw)]<-0
+  radCsw[is.infinite(radCsw)]<-0
+  radClw<-sva*lwsky
+  Rabsg<-radGsw+radGlw
+  return(list(Rabsg=Rabsg,radCsw=radCsw,radClw=radClw,twostreamp=twostreamp))
 }
-#' Calculates thermal conductivity to ground snow surface
-.gHaG<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather) {
+.calcG<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,xyf) {
   snowd<-.vta(snowdepth,dtm)
-  zpd<-snowd-0.2*zmin
-  zpd[zpd<6.5*zmin]<-6.5*zmin
-  # DK: To avoid introducing NULL values from taking log, perhaps need
-  # something like:
-  # zpd[zpd<zu]<-zu
-  # winds
-  uf<-(0.4*u2)/log((zu-zpd)/zmin)
-  # Compute wind speed at top of canopy
-  l_m<-.mixinglength(hgta,pai,zmin)
-  tp<-0.2*pai*hgta
-  tp[tp<0.0001]<-0.0001
-  a<-(tp/l_m)^0.5
-  uh<-suppressWarnings((uf/0.4)*log((hgta-zpd)/zmin))
-  uh[is.na(uh)]<-uf[is.na(uh)]
-  uh[uh<uf]<-uf[uh<uf]
-  # Conductivities
-  # ~~ Ref height to canopy top
+  sel<-which(snowd>=hgta)
+  # zero plane displacement
+  d<-.zeroplanedis(hgta,pai)
+  d[sel]<-snowd[sel]
+  zm<-.roughlength(hgta,pai,d)
+  zm[zm<zmin]<-zmin
+  zm[sel]<-zmin
+  # smooth roughness lengths
+  da<-.roughresample(d,dtm,xyf)
+  zma<-.roughresample(zm,dtm,xyf)
+  uf<-(0.4*u2)/log((zu-da)/zma)
+  # to canopy heat exchange surface
+  gHes<-.gturb(uf,da,zma,zu)
+  # To ground
   h<-hgta
-  sel<-which(hgta<(zpd+zmin*0.2+0.001))
-  h[sel]<-zpd[sel]+zmin*0.2+0.001
-  gRH<-.gturb(uf,zpd,zmin,zu,h,0,0)
-  # ~~ Canopy top to ground
-  gH0<-.gcanopy(l_m,a,hgta,uh,hgta,0,0)
-  gHa<-1/(1/gRH+1/gH0)
-  gHa[gHa==0]<-gRH[gHa==0]
-  # Check limits
-  zpd<-6.5*zmin
-  zh<-0.2*zmin
-  u2<-weather$windspeed
-  u2[u2<0.5]<-0.5
-  gx<-(0.4^2*43*u2)/(log((2-zpd)/zmin)*log((2-zpd)/zh))
-  gmx<-max(gx)
-  gmn<-min(gx)
-  gHa[gHa>gmx]<-gmx
-  gHa[gHa<gmn]<-gmn
-  gHa
-}
-#' Calculates thermal conductivity to canopy snow surface
-.gHaC<-function(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather,dint,xyf) {
-  snowd<-.vta(snowdepth,dtm)
-  zpd<-snowd-0.2*zmin
-  # DK: To avoid introducing NULL values from taking log, perhaps need
-  # something like:
-  # zpd[zpd<zu]<-zu
-  zpd[zpd<6.5*zmin]<-6.5*zmin
-  # winds
-  uf<-(0.4*u2)/log((zu-zpd)/zmin)
-  # Roughness lengths and conductivity
-  da<-.zeroplanedis(hgta,pai)
-  zma<-.roughlength(hgta,pai)
-  da<-.roughresample(da,dtm,xyf,zmin*6.5,30*dint)
-  zma<-.roughresample(zma,dtm,xyf,zmin,30*dint)
-  zma[zma<zmin]<-zmin
-  da[da<zpd]<-zpd[da<zpd]
-  gHa<-.gturb(uf,da,zma,zu,NA,0,0)
-  # Check limits
-  zpd<-6.5*zmin
-  zh<-0.2*zmin
-  u2<-weather$windspeed
-  u2[u2<0.5]<-0.5
-  gx<-(0.4^2*43*u2)/(log((2-zpd)/zmin)*log((2-zpd)/zh))
-  gmx<-max(gx)
-  gmn<-min(gx)
-  gHa[gHa>gmx]<-gmx
-  gHa[gHa<gmn]<-gmn
-  gHa
+  h[sel]<-snowd[sel]
+  h[h<10*zmin]<-10*zmin
+  gHa<-.gturb(uf,d,zm,zu,h,0,0.05) # From ref hgt to canopy top (or snow surface)
+  gHs<-.gcanopy(uf,h,d,h,snowd) # From canopy top to snow surface
+  g0<-1/(1/gHa+1/gHs) # From ground to ref hgt (above canopy)
+  g0[sel]<-gHa[sel] # replace with gHa if snow depth > canopy height
+  return(list(gHes=gHes,g0=g0))
 }
 #' Sets snow temperature to zero when it freezes to account for latent heat of freezing
 .freeze<-function(snowtemp) {
@@ -233,7 +209,7 @@
 .htd<-function(a) {
   .htdx<-function(x) {
     d<-matrix(x,ncol=24,byrow=T)
-    d<-apply(d,1,sum)
+    d<-apply(d,1,sum,na.rm=T)
     d
   }
   ad<-apply(a,c(1,2),.htdx)
@@ -241,13 +217,12 @@
   ad
 }
 #' Computes snow melt when snow is an array
-# DK: added arguments `slr` and `apr` to allow for user input
 .snowmelt <- function(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv="Taiga",
                       meltfact=0.115,STparams,snowem=0.99,zu=2,zmin=0.002,umin=0.5,
-                      astc=1.5,xyf=10,initdepth=0,dint=24,merid=0,dst=0,slr=NA,apr=NA) {
+                      astc=1.5,xyf=10,initdepth=0,dint=24,slr=NA,apr=NA,clump) {
   # Set snow depth to metres
   snowdepth<-snowdepth/100
-  # Calculate snow albedo
+  # Calculate snow refletcance
   prech<-rep(0,length(precd)*24)
   sel<-(c(1:length(precd))-1)*24+1
   prech[sel]<-precd
@@ -256,18 +231,18 @@
   snowalb<-.vta(snowalb,dtm)
   hor<-.hor(dtm)
   # =====#
-  epai<-.epaif(pai,hgt,snowdepth)
-  # Calculate absorbed radiation
-  # DK: added arguments `slr` and `apr` to allow for user input
-  Rabs<-.snowrad(weather,dtm,hor,lat,long,epai,x,snowalb,snowem,merid,dst,slr,apr)
+  epai<-.epaif(pai,hgt,snowdepth,clump)
+  epai<-.ehr(epai)
+  Rabs<-.snowrad(weather,snowdepth,dtm,hor,lat,long,epai,x,snowalb,snowem,slr,apr,clump)
   Rabsg<-Rabs$Rabsg
-  Rabsc<-Rabs$Rabsc
+  Rabsc<-Rabs$radCsw+Rabs$radClw
   # Calculate conductivities
   u2<-.winds(weather,dtm,hor)
   u2[u2<umin]<-umin
   pai<-.ehr(pai)
-  gHaG<-.gHaG(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather)
-  gHaC<-.gHaC(u2,zu,snowdepth,dtm,hgta,pai,zmin,weather,dint,xyf)
+  gHs<-.calcG(u2,zu,snowdepth,dtm,hgta,pai,zmin,xyf)
+  gHaC<-gHs$gHes
+  gHaG<-gHs$g0
   # Calculate snow temperature
   tc<-.vta(weather$temp,dtm)
   snowtempG<-SnowTemp(Rabsg,gHaG,tc,STparams,snowem)
@@ -293,7 +268,7 @@
   meltcmC<-meltcmC+rmeltcm
   meltcmG<-.htd(meltcmG)
   meltcmC<-.htd(meltcmC)
-  return(list(meltcmG=meltcmG,meltcmC=meltcmC,snowtempG=snowtempG,snowtempC=snowtempC))
+  return(list(meltcmG=meltcmG,meltcmC=meltcmC,snowtempG=snowtempG,snowtempC=snowtempC,Radparams=Rabs))
 }
 #' Calculates average daily wind speed so that canopy snow interception can be computed
 .winddaily<-function(weather) {
@@ -313,18 +288,16 @@
 #' Calculates wind speed within canopy given vertical profile within the canopy
 .meancanopywind<-function(uz,dtm,pai,hgt,d,zm,snowd=0,zu=2) {
   # Apply shelter coefficient
-  ln<-log((zu-d)/zm)
-  ln[ln<0.4]<-0.4
-  uf<-(0.4*uz)/ln
+  uf<-suppressWarnings((0.4*uz)/log((zu-d)))
   ehgt<-pmax(hgt,snowd)
-  ln<-suppressWarnings(log((ehgt-d)/zm))
-  ln[ln<0.001]<-0.001
-  ln[is.na(ln)]<-0.001
   uh<-suppressWarnings((uf/0.4)*log((ehgt-d)/zm))
-  sel<-which(is.na(uh))
-  uh[sel]<-uf[sel]
-  l_m<-.mixinglength(hgt,pai)
-  a<-((0.2*pai*hgt)/l_m)^0.5
+  s<-which(uh<uf)
+  uh[s]<-uf[s]
+  Be<-0.205*pai^0.445+0.1
+  a<-pai/hgt
+  Lc<-(0.25*a)^-1
+  Lm<-2*Be^3*Lc
+  a<-(Be*hgt)/Lm
   ef<-exp(a*((snowd/hgt)-1))
   ha<-hgt/a
   int<-ha*(1-ef)
@@ -364,7 +337,7 @@ tpiradius<-function(windspeed, hgt, PAI) {
 .tpicalc<-function(af,me,dtm,tfact) {
   # Calculate topographic positioning index
   if (af < me/2) {
-    dtmc<-aggregate(dtm,af)
+    dtmc<-aggregate(dtm,af,na.rm=T)
     dtmc<-resample(dtmc,dtm)
   } else dtmc<-dtm*0+mean(.is(dtm),na.rm=T)
   tpi<-dtmc-dtm
@@ -427,16 +400,17 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #'
 #' @param weather a data.frame of weather variables (see details).
 #' @param precd a vector of daily precipitation (mm).
-#' @param dtm a raster of elevations (m). the x and y dimensions of the raster must also be in metres
-#' @param slr an optional raster object of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
-#' @param apr an optional raster object of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
-#' @param snowdepth a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm, across the scene
-#' @param pai a single numeric value, raster or array of plant area index values
-#' @param hgt a raster of vegetation heights
+#' @param snowdepth a numeric vector of length equal to the number of timesteps (e.g. nrow(weather)) representing average snowdepth, in cm,
+#' across the scene as e.g. returned by [runNMRSnow()] or spline interpolated from measurments.
+#' @param dtm a SpatRast of elevations (m). the x and y dimensions of the raster must also be in metres
+#' @param pai a single numeric value, SpatRast or array of plant area index values
+#' @param hgt a SpatRast of vegetation heights
 #' @param STparams snow temperature model coefficients as derived by [fitsnowtemp()]
+#' @param slr an optional SpatRast of slope values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
+#' @param apr an optional SpatRast of aspect values (Radians). Calculated from dtm if not supplied, but outer cells will be NA.
 #' @param meltfact snow melt coefficient as returned by `fitsnowtemp` or `getmeltf`. Derived using `getmeltf` is not supplied.
-#' @param plai a single numeric value, raster or array of the proprotion of plant area index values that are leaves
-#' @param x optional single numeric value, raster, matrix or array of leaf distribution coefficients
+#' @param plai a single numeric value, SpatRast or array of the proprotion of plant area index values that are leaves
+#' @param x optional single numeric value, SpatRast, matrix or array of leaf distribution coefficients
 #' @param lat latitude of location (decimal degrees). Derived from `dtm` is not supplied, so coordinate reference of system of `dtm` must be defined.
 #' @param long longitude of location (decimal degrees). Derived from `dtm` is not supplied, so coordinate reference of system of `dtm` must be defined.
 #' @param snowenv one of `Alpine`, `Maritime`, `Prairie`, `Taiga` or `Tundra` (see details)
@@ -450,10 +424,10 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' @param Sh optionally, branch snow load coefficient (kg/m^2). 6.6 for pine and 5.9 kg for spruce.
 #' @param zu height above ground of wind speed measurement in `weather` (m)
 #' @param xyf number of grid cells over which to smooth vertical wind height profile
-#' @param merid longitude of local timezone meridian (0 for UTC)
-#' @param dst an optional numeric value representing the time difference from the timezone meridian (hours, e.g. +1 for British Summer Time if `merid` = 0).
 #' @param initdepth single numeric value or matrix of initial snow depths at start of model run
-#' @param out optinal variable indicating whether to return hourly or daily snow depths (default is hourly)
+#' @param out optional variable indicating whether to return hourly or daily snow depths (default is hourly)
+#' @param clump a single numeric value or array of values between 0 and 1 indicating the fraction of radiation passing through larger gaps in the canopy,
+#' ( see [microclimf::clumpestimate()])
 #' @return a list of the following:
 #' @return `gsnowdepth` array of predicted ground snow depth (cm) across the scene
 #' @return `canswe` array of predicted canopy snow water equivalent (mm / m^2) across the scene
@@ -464,29 +438,29 @@ canopysnowint<-function(precd,uz,dtm,gsnowd,Lt,pai,plai,hgt,d=NA,zm=NA,phs=375,S
 #' coefficient is the ratio of vertical to horizontal projections of leaf foliage (~1 for decidious woodland).
 #' @export
 #' @examples
-#' require(NicheMapR)
-#' # Derive estimates of snow melt temperature parameters using NicheMapR
-#' nmrout<-runNMRSnow(climdata,precd,66.215,29.293,ALTT = 360)
-#' STparams<-fitsnowtemp(climdata,precd,nmrout$SNOWDEP,nmrout$SNOWTEMP)
-#' meltfact<-fitsnowdepth(climdata,nmrout$SNOWDEP,precd,STparams=STparams)$meltfact
-#' # Run snow model with defaults (takes 20 seconds)
-#' mout1<-modelsnowdepth(climdata,precd,dtm,pai,hgt,STparams,meltfact)
+#' # Run snow model with defaults and inbuilt datasets and model coefficients (takes 20 seconds)
+#' snd<-nowdepth$snowdepth # snow depth vector
+#' mout1<-modelsnowdepth(climdata,precd,snd,dtm,pai,hgt,STparams,SDparams$meltfact)
 #' # Run snow model with defaults, but allowing spatially variable snow melt (takes ~100 seconds)
-#' mout2<-modelsnowdepth(climdata,precd,dtm,pai,hgt,STparams,meltfact,spatialmelt = TRUE)
+#' mout2<-modelsnowdepth(climdata,precd,snd,dtm,pai,hgt,STparams,SDparams$meltfact,spatialmelt = TRUE)
 #' # Compare results
 #' msnowdepth1<-apply(mout1$gsnowdepth,c(1,2),mean)
 #' msnowdepth2<-apply(mout2$gsnowdepth,c(1,2),mean)
 #' snowdif<-msnowdepth2-msnowdepth1
 #' par(mfrow=c(2,2))
-#' plot(raster(msnowdepth1))
-#' plot(raster(msnowdepth2))
-#' plot(raster(snowdif))
-# DK: added arg `snowdepth`, and arguments `slr` and `apr` to allow for user input
-modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
-                         pai, hgt, STparams, meltfact=NA, plai = 0.3,
-                         x = 1, lat = NA, long = NA, snowenv = "Taiga", tpi_radius = 200, tfact = 10,
-                         snowem=0.99, zmin=0.002, umin=0.5, astc=1.5, spatialmelt = FALSE,
-                         Sh = 6.3, zu = 2, xyf = NA, merid = 0, dst = 0, initdepth = 0, out = "hourly") {
+#' plot(rast(msnowdepth1))
+#' plot(rast(msnowdepth2))
+#' plot(rast(snowdif))
+modelsnowdepth<-function(weather, precd, snowdepth, dtm, pai, hgt, STparams, meltfact=NA,
+                         slr = NA, apr = NA, plai = 0.3, x = 1, lat = NA, long = NA,
+                         snowenv = "Taiga", tpi_radius = 200, tfact = 10, snowem=0.99,
+                         zmin=0.002, umin=0.5, astc=1.5, spatialmelt = FALSE, Sh = 6.3,
+                         zu = 2, xyf = NA, initdepth = 0, out = "hourly", clump = 0.2) {
+  # Unpack PackedSpatRasters if necessary
+  if (class(dtm)[1]=="PackedSpatRaster") dtm<-rast(dtm)
+  if (class(pai)[1]=="PackedSpatRaster") pai<-rast(pai)
+  if (class(hgt)[1]=="PackedSpatRaster") hgt<-rast(hgt)
+  #  Adjust wind speeed to 2m above tallest vegetation
   zo<-max(.is(hgt),na.rm=T)+2
   u2<-microctools::windadjust(weather$windspeed,zu,zo)
   weather$windspeed<-u2
@@ -494,7 +468,7 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   tme<-as.POSIXlt(weather$obs_time,tz="UTC")
   dint<-24/(as.numeric(tme[2]-tme[1]))
   if (is.na(lat)) {
-    ll<-.latlongfromraster(dtm)
+    ll<-.latlongfromrast(dtm)
     lat<-ll$lat
     long<-ll$long
   }
@@ -503,7 +477,8 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   pai<-.unpackpai(pai,ndays,dtm)
   plai<-.unpackpai(plai,ndays,dtm)
   x<-.unpackpai(x,ndays*24,dtm)
-  hgta<-.rta(hgt,length(weather$temp))
+  clump<-.unpackpai(clump,ndays,dtm)
+  hgta<-.rta(hgt,ndays*24)
   if (is.na(meltfact)) meltfact<-getmeltf(snowenv)
   # Calculate melt
   initdepths<-mean(initdepth,na.rm=T)
@@ -513,15 +488,9 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   af<-round(tpi_radius/reso,0)
   me<-min(dim(dtm)[1:2]) # extent
   if (spatialmelt) {
-    # DK:
-    # Perhaps a typo in argument inputs? Originally `zo` was an argument but there's
-    # reason to believe this is `zu`. E.g. later on, within .gHaG() within
-    # .snowmelt(), `zu` is handed to .gturb(), and documentation for gturb() in
-    # microctools (seemingly same function) has default for zu = 2....while here
-    # zo = 24.83485
     melt<-.snowmelt(weather,precd,dtm,lat,long,pai,x,hgt,hgta,snowdepth,snowenv,meltfact,
-                    STparams,snowem,zu,zmin,umin,astc,xyf,initdepth,dint,merid,dst,
-                    slr,apr)
+                    STparams,snowem,zo,zmin,umin,astc,xyf,initdepth,dint,
+                    slr,apr,clump)
   } else {
     mh<-snp$snowmelt
     md<-matrix(mh,ncol=24,byrow=TRUE)
@@ -546,7 +515,7 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   u2<-.winds(we2,dtm,hor)
   # Calculate roughness lengths
   d<-.zeroplanedis(.rta(hgt,ndays),pai)
-  zm<-.roughlength(.rta(hgt,ndays),pai)
+  zm<-.roughlength(.rta(hgt,ndays),pai,d)
   d<-.roughresample(d,dtm,xyf,zmin*6.5)
   zm<-.roughresample(zm,dtm,xyf,zmin)
   # Calculate topographic positioning index
@@ -563,8 +532,7 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   # Calculate initial ratio of snow depths
   rint<-suppressWarnings(canopysnowint(apply(fallswe,c(1,2),mean),
                                        mean(weather$windspeed),dtm,0,0,pai[,,1],plai[,,1],
-                                       hgt,d[,,1],zm[,,1],phs[1]*1000,Sh,zu))/
-    apply(fallswe,c(1,2),mean)
+                                       hgt,d[,,1],zm[,,1],phs[1]*1000,Sh,zo))/apply(fallswe,c(1,2),mean)
   rint[is.na(rint)]<-0
   twe<-.vta(dsnowdepth*(phs/10),dtm) # Total water equivelent (kg / m3)
   swe<-twe*(1-.rta(raster(rint),ndays)) # Ground water equivelent (kg / m3)
@@ -573,7 +541,6 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   sdepthchange<-dsnowdepth[2:length(dsnowdepth)]-dsnowdepth[1:(length(dsnowdepth)-1)]
   sdepthchange<-abs(c(0,sdepthchange))
   # Run model in daily timesteps
-  ndays<-length(snowfall)
   for (i in 2:ndays) {
     # Calculate ground snow depth (needed for effective pai)
     gsnowd<-swe[,,i-1]/(phs[i-1]*10)
@@ -597,7 +564,10 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
     swe[,,i]<-m
     if (sdepthchange[i]>0) {
       dsnow<-swe[,,i]/(phs[i]*10)
-      dtms<-dtm+raster(dsnow,template=dtm)
+      rsnow<-rast(dsnow)
+      ext(rsnow)<-ext(dtm)
+      crs(rsnow)<-crs(dtm)
+      dtms<-dtm+rsnow
       tpic<-.tpicalc(af,me,dtms,tfact)
     }
   }
@@ -609,6 +579,12 @@ modelsnowdepth<-function(weather, precd, snowdepth, dtm, slr = NA, apr = NA,
   }
   if (spatialmelt) {
     snowtempG<-melt$snowtempG
-  } else snowtempG<-.vta(snp$snowtemp,dtm)
-  return(list(gsnowdepth=gsnowdepth,canswe=canswe,snowtempG=snowtempG))
+    Radparams<-melt$Radparams
+  } else {
+    snowtempG<-.vta(snp$snowtemp,dtm)
+    Radparams<-NA
+  }
+  snowout<-list(gsnowdepth=gsnowdepth,canswe=canswe,snowtempG=snowtempG,Radparams=Radparams)
+  class(snowout)<-"snow"
+  return(snowout)
 }

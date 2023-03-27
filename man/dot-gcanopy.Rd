@@ -4,7 +4,7 @@
 \alias{.gcanopy}
 \title{Calculates turbulent molar conductivity within canopy}
 \usage{
-.gcanopy(l_m, a, hgt, uh, z1, z0, gmin)
+.gcanopy(uf, h, d, z1, z0 = 0.0122, phi_h = 1, gmin = 0.05)
 }
 \description{
 Calculates turbulent molar conductivity within canopy

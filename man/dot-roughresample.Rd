@@ -4,7 +4,7 @@
 \alias{.roughresample}
 \title{resamples roughness lengths (or zero-plane displacement) by xyf to smooth}
 \usage{
-.roughresample(zm, dtm, xyf, mnval, tint = NA)
+.roughresample(zm, dtm, xyf, tint = NA)
 }
 \description{
 resamples roughness lengths (or zero-plane displacement) by xyf to smooth

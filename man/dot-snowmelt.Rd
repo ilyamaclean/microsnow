@@ -26,10 +26,9 @@
   xyf = 10,
   initdepth = 0,
   dint = 24,
-  merid = 0,
-  dst = 0,
   slr = NA,
-  apr = NA
+  apr = NA,
+  clump
 )
 }
 \description{

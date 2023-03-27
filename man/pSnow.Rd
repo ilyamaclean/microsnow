@@ -47,7 +47,7 @@ a list of the following:
 
 \code{snowtemp} snow temperature (deg C)
 
-\code{snowalb} snow albedo (range 0 to 1)
+\code{snowref} snow reflectance (range 0 to 1)
 
 \code{snowfall} snow fall (cm) at each time increment
 

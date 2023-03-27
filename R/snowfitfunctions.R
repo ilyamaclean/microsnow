@@ -1,4 +1,4 @@
-#' Computes snow albedo
+#' Computes snow reflectance
 .snowalb <- function(weather, prech, astc=1.5) {
   snowyn<-ifelse(prech>0,1,0)
   age<-0
@@ -90,7 +90,7 @@ SnowTemp<-function(Rabs,gHa,tc,STparams,snowem=0.99) {
 #' @return `snowdepth` snow depth (cm)
 #' @return `snowdens` snow density (g/cm^3)
 #' @return `snowtemp` snow temperature (deg C)
-#' @return `snowalb` snow albedo (range 0 to 1)
+#' @return `snowref` snow reflectance (range 0 to 1)
 #' @return `snowfall` snow fall (cm) at each time increment
 #' @return `snowmelt` snow melt (cm) at each time increment
 #' @export
@@ -147,7 +147,7 @@ pSnow <- function(weather, precd, snowenv = "Taiga", STparams, meltfact=0.11,
   pdensity<-(densfun[1]-densfun[2])*(1-exp(-densfun[3]*predsnowd-densfun[4]*age))+densfun[2]
   predsnowd<-predsnowd*(densfun[2]/pdensity)
   return(list(snowdepth=predsnowd,snowdens=pdensity,snowtemp=psnowtemp,
-              snowalb=snowalb,snowfall=fallcm,snowmelt=meltcm+rmeltcm))
+              snowref=snowalb,snowfall=fallcm,snowmelt=meltcm+rmeltcm))
 }
 #' The function `fitsnowtemp` derives model parameters for fitting the snow temperature model
 #'
@@ -279,7 +279,9 @@ fitsnowdepth<-function(weather,snowdepth,precd,snowenv="Taiga",STparams,plotout=
     par(new=T)
     plot(snowdepth,col=rgb(1,0,0,0.5),type="l",ylim=c(0,mx),xlab="",ylab="",main=paste("RMS:",round(rms[sel4],3)))
   }
-  return(list(psnowdepth=psnowd,RMS=rms[sel4],meltfact=mf))
+  out<-list(psnowdepth=psnowd,RMS=rms[sel4],meltfact=mf)
+  class(out)<-"SnowDparams"
+  return(out)
 }
 .snowdens<-function(snowenv="Tundra") {
   densfun<-c(0.5975,0.2237,0.0012,0.0038)

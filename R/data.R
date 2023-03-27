@@ -22,7 +22,7 @@
 #' A dataset of elevations (m) for Sodankylä in Finland (xmin = 2963700, xmax = 2964950,
 #' ymin = 10221300, ymax = 10222550, CRS: 3395).
 #'
-#' @format A RasterLayer object with 50 rows and 50 columns
+#' @format A PackedSpatRaster object with 50 rows and 50 columns
 #' @source \url{https://aws.amazon.com/public-datasets/terrain/}
 "dtm"
 #'
@@ -31,7 +31,7 @@
 #' A dataset of canopy heights (m) for Sodankylä in Finland (xmin = 2963700, xmax = 2964950,
 #' ymin = 10221300, ymax = 10222550, CRS: 3395).
 #'
-#' @format A RasterLayer object with 50 rows and 50 columns
+#' @format A PackedSpatRaster object with 50 rows and 50 columns
 #' @source \url{https://land.copernicus.eu/}
 "hgt"
 #'
@@ -40,7 +40,7 @@
 #' A dataset of plant area index values for Sodankylä in Finland (xmin = 2963700, xmax = 2964950,
 #' ymin = 10221300, ymax = 10222550, CRS: 3395).
 #'
-#' @format A RasterLayer object with 50 rows and 50 columns
+#' @format A PackedSpatRaster object with 50 rows and 50 columns
 #' @source \url{https://land.copernicus.eu/}
 "pai"
 #'
@@ -51,6 +51,18 @@
 #' @format A vector of daily precipitation (mm/day, snow water equivalent when snow)
 #' @source \url{https://en.ilmatieteenlaitos.fi/}
 "precd"
+#'
+#' an object of class `SnowDparams`
+#'
+#' A list of model parameters for modelling snow depth (here derived using [fitsnowdepth()] on inbuilt datasets)
+#'
+#' @format a list of the following outputs:
+#' \describe{
+#'  \item{psnowdepth}{A vector of predicted snow depths}
+#'  \item{RMS}{RMS error of fitted model}
+#'  \item{meltfac}{A snow melt coefficient}
+#' }
+"SDparams"
 #'
 #' A data frame of hourly snow depths
 #'
@@ -63,3 +75,14 @@
 #' }
 #' @source \url{https://en.ilmatieteenlaitos.fi/}
 "snowdepth"
+#'
+#' an object of class `SnowTparams`
+#'
+#' A list of model parameters for modelling snow temperatures (here derived using [fitsnowtemp()] on inbuilt datasets)
+#'
+#' @format a list of the following outputs:
+#' \describe{
+#'  \item{m1}{A list of model coefficients when snow temperature below freezing}
+#'  \item{m2}{A list of model coefficients when snow temperature above freezing}
+#' }
+"STparams"

@@ -5,7 +5,7 @@
 \alias{pai}
 \title{A 25 m resolution dataset of plant area index values.}
 \format{
-A RasterLayer object with 50 rows and 50 columns
+A PackedSpatRaster object with 50 rows and 50 columns
 }
 \source{
 \url{https://land.copernicus.eu/}

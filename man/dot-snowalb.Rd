@@ -2,10 +2,10 @@
 % Please edit documentation in R/snowfitfunctions.R
 \name{.snowalb}
 \alias{.snowalb}
-\title{Computes snow albedo}
+\title{Computes snow reflectance}
 \usage{
 .snowalb(weather, prech, astc = 1.5)
 }
 \description{
-Computes snow albedo
+Computes snow reflectance
 }

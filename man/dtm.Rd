@@ -5,7 +5,7 @@
 \alias{dtm}
 \title{A 25 m resolution digital terrain dataset.}
 \format{
-A RasterLayer object with 50 rows and 50 columns
+A PackedSpatRaster object with 50 rows and 50 columns
 }
 \source{
 \url{https://aws.amazon.com/public-datasets/terrain/}

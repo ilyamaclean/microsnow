@@ -1,6 +1,6 @@
 Package: microsnow
 Type: Package
-Title: Below or above canopy microclimate modelling with R
+Title: Below or above canopy microclimate modelling with R in snowy environments
 Version: 0.1.0
 Authors@R: c(
     person("Ilya", "Maclean", email = "i.m.d.maclean@exeter.ac.uk", role = "cre"),
@@ -19,11 +19,11 @@ RoxygenNote: 7.1.1
 Roxygen: list(markdown = TRUE)
 Remotes: ilyamaclean/microclimf,
     mrke/NicheMapR, ilyamaclean/microctools
-Imports: sp,
+Imports:
+    abind,
     sf,
-    raster,
-    rgdal,
     stats,
+    terra,
     microctools,
     microclimf
 Suggests: knitr,

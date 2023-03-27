@@ -46,7 +46,7 @@ In the code below, outputs from `NicheMapR` are used in place of field measureme
 
 ```{r eval=FALSE}
 library(microsnow)
-library(raster)
+library(terra)
 library(NicheMapR)
 # Derive estimates of snow melt temperature parameters using NicheMapR
 nmrout<-runNMRSnow(climdata,precd,66.215,29.293,ALTT = 360)

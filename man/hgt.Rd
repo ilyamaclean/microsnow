@@ -5,7 +5,7 @@
 \alias{hgt}
 \title{A 25 m resolution dataset of canopy height.}
 \format{
-A RasterLayer object with 50 rows and 50 columns
+A PackedSpatRaster object with 50 rows and 50 columns
 }
 \source{
 \url{https://land.copernicus.eu/}

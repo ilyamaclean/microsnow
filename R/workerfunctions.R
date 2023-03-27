@@ -1,7 +1,7 @@
 #' Check if input is a raster and convert to matrix if it is
 #' @import raster
 .is <- function(r) {
-  getValues(r,format="matrix")
+  as.matrix(r,wide=T)
 }
 #' Convert matrix to array
 .rta <- function(r,n) {
@@ -17,37 +17,15 @@
   a
 }
 #' Calculates latitude and longitude from raster
-#' @import raster
-.latlongfromraster<-function (r) {
-  e <- extent(r)
-  xy <- data.frame(x = (e@xmin + e@xmax)/2, y = (e@ymin + e@ymax)/2)
-  coordinates(xy) = ~x + y
-  proj4string(xy) = crs(r)
-  ll <- as.data.frame(spTransform(xy, CRS("+init=epsg:4326")))
-  ll <- data.frame(lat = ll$y, long = ll$x)
-  ll
-}
-#' Calculate zero plane displacement
-.zeroplanedis <- function(hgt, pai) {
-  d<-(1-(1-exp(-sqrt(7.5*pai)))/sqrt(7.5*pai))*hgt
-  d
-}
-#' Calculate roughness length governing momentum transfer
-.roughlength <- function(hgt, pai, zm0 = 0.003) {
-  d<-.zeroplanedis(hgt,pai)
-  ur<-sqrt(zm0+(0.3*pai)/2)
-  ur[ur>0.3]<-0.3
-  zm<-(hgt-d)*exp(-0.4*ur-0.193)
-  zm[zm<zm0]<-zm0
-  zm
-}
-#' Calculates below canopy mixing length
-.mixinglength <- function(hgt, pai, zm0 = 0.003, mnlm = 0.04) {
-  d<-.zeroplanedis(hgt,pai)
-  zm<-.roughlength(hgt,pai,zm0)
-  l_m<-(0.32*(hgt-d))/log((hgt-d)/zm)
-  l_m[l_m<mnlm]<-mnlm
-  l_m
+#' @import terra
+.latlongfromrast<-function (r) {
+  e <- ext(r)
+  xy <- data.frame(x=(e$xmin+e$xmax)/2,y=(e$ymin+e$ymax)/2)
+  xy <- sf::st_as_sf(xy, coords = c("x", "y"),
+                     crs = crs(r))
+  ll <- sf::st_transform(xy, 4326)
+  ll <- data.frame(lat = sf::st_coordinates(ll)[2], long = sf::st_coordinates(ll)[1])
+  return(ll)
 }
 #' expand daily array to hourly array
 .ehr<-function(a) {
@@ -125,22 +103,30 @@
   solz
 }
 #' Calculates the solar coefficient
-.solarindex<- function(dtm,alt,azi,slr=NA,apr=NA) {
-  if (class(slr)[1]=="logical") slr<-terrain(dtm,opt="slope")
-  if (class(apr)[1]=="logical") apr<-terrain(dtm,opt="aspect")
-  sl<-.rta(slr,length(azi))
-  ap<-.rta(apr,length(azi))
-  zen<-pi/2-alt
+.solarindex<- function(dtm,salt,azi,slr=NA,apr=NA) {
+  if (class(slr)[1]=="logical") slr<-terrain(dtm,v="slope")
+  if (class(apr)[1]=="logical") apr<-terrain(dtm,v="aspect")
+  sl<-.rta(slr*pi/180,length(azi))
+  ap<-.rta(apr*pi/180,length(azi))
+  sl[is.na(sl)]<-0
+  ap[is.na(ap)]<-0
   sazi<-.vta(azi,dtm)*(pi/180)
-  i<-cos(zen)*cos(sl)+sin(zen)*sin(sl)*cos(sazi-ap)
+  i<-sin(salt)*cos(sl)+cos(salt)*sin(sl)*cos(sazi-ap)
   i[i<0]<-0
   i
 }
 #' Calculates radiation extinction coefficient for canopy
-.cank <- function(x,sa) {
+.cank <- function(x,sa,si) {
+  # Raw k
+  sa[sa<0]<-0
   zen<-pi/2-sa
   k<-sqrt((x^2+(tan(zen)^2)))/(x+1.774*(x+1.182)^(-0.733))
-  k
+  k0<-sqrt(x^2)/(x+1.774*(x+1.182)^(-0.733))
+  # k dash
+  kd<-k*cos(zen)/si
+  sel<-which(si==0)
+  kd[sel]<-1
+  return(list(k=k,kd=kd,k0=k0))
 }
 #' Calculates direct radiation transmission through canopy
 .cantransdir <- function(l, k, ref = 0.23, clump = 0) {
@@ -160,35 +146,85 @@
   tr
 }
 #' Calculates turbulent molar conductivity above canopy
-.gturb<-function(uf,d,zm,z1,z0=NA,psi_h=0,gmin) {
+.gturb<-function(uf,d,zm,z1,z0=NA,psi_h=0,gmin=0.05) {
   zh<-0.2*zm
-  if (is.na(z0)[1]) {
-    z0<-d+zh
-  }
-  xx<-(z1-d)/(z0-d)
-  xx[xx<0.001]<-0.001
-  ln<-log(xx)
-  lnr<-ln*log((z1-d)/zh)
-  psx<-lnr*psi_h
-  g<-(0.4*43*uf)/(ln+psx)
+  if (class(z0)=="logical") z0<-d+zh
+  g<-(0.4*43*uf)/log((z1-d)/(z0-d))
   sel<-which(g<gmin)
-  # DK: Originally was g[sel]<-gmin[sel]. But gmin is just a single constant
-  # (here, 0(. So I don't think we're supposed to select inside gmin
-  g[sel]<-gmin
-  sel<-which(g>1e10)
-  g[sel]<-1e10
+  g[g<gmin]<-gmin
   g
 }
 #' Calculates turbulent molar conductivity within canopy
-.gcanopy <- function(l_m,a,hgt,uh,z1,z0,gmin) {
-  e0<-exp(-a*(z0/hgt-1))
-  e1<-exp(-a*(z1/hgt-1))
-  g<-(l_m*21.5*uh*a)/(e0-e1)
-  # Set minimum
-  sel<-which(g<gmin)
-  g[sel]<-gmin[sel]
-  g[is.na(g)]<-1/mean(1/gmin)
-  sel<-which(g>1e10)
-  g[sel]<-1e10
+.gcanopy <- function(uf,h,d,z1,z0=0.0122,phi_h=1,gmin=0.05) {
+  sel<-which(z0<0.0122)
+  z0[sel]<-0.0122
+  g<-(0.4*43*uf*(h-d)*phi_h)/log(z1/z0)
+  g[g<gmin]<-gmin
   g
+}
+#' Calculate zero plane displacement
+.zeroplanedis<-function(h,pai) {
+  pai[pai<0.001]<-0.001
+  d<-(1-(1-exp(-sqrt(7.5*pai)))/sqrt(7.5*pai))*h
+  d
+}
+#' Calculate roughness length
+.roughlength<-function(h,pai,d=NA,psi_h=0) {
+  if (class(d)=="logical") d<-.zeroplanedis(h,pai)
+  Be<-sqrt(0.003+(0.2*pai)/2)
+  zm<-(h-d)*exp(-0.4/Be)*exp(psi_h)
+  zm
+}
+#' Calculate parameters of two-stream radiation model
+.twostreamparams<-function(pait,x,clump,lref,gref,ltra,alt,si) {
+  si[si<0]<-0
+  alt[alt<0]<-0
+  si[alt<=0]<-0
+  # === (1a) Calculate canopy k
+  kkd<-.cank(x,alt*pi/180,si)
+  # === (1c) Adjust paramaters for gap fraction and inclined surface
+  pai_t<-pait/(1-clump)
+  sk<-(1-(1-gref)*si)/(1-(1-gref)*sin(alt*pi/180))
+  gref2<-gref*sk
+  # === (1d) Calculate two stream base parameters
+  om<-lref+ltra
+  a<-1-om
+  del<-lref-ltra
+  mla<-(9.65*(3+x)^(-1.65))
+  mla[mla>pi/2]<-pi/2
+  J<-cos(mla)^2
+  gma<-0.5*(om+J*del)
+  s<-0.5*(om+J*del/kkd$k)*kkd$k
+  sstr<-om*kkd$k-s
+  # === (1e) Calculate two stream base parameters
+  h<-sqrt(a^2+2*a*gma)
+  sig<-kkd$kd^2+gma^2-(a+gma)^2
+  S1<-exp(-h*pai_t)
+  S2<-exp(-kkd$kd*pai_t)
+  u1<-a+gma*(1-1/gref)
+  u2<-a+gma*(1-gref)
+  D1<-(a+gma+h)*(u1-h)*1/S1-(a+gma-h)*(u1+h)*S1
+  D2<-(u2+h)*1/S1-(u2-h)*S1
+  # === (1f) Calculate Diffuse radiation parameters
+  p1<-(gma/(D1*S1))*(u1-h)
+  p2<-(-gma*S1/D1)*(u1+h)
+  p3<-(1/(D2*S1))*(u2+h)
+  p4<-(-S1/D2)*(u2-h)
+  # === (1f) Calculate Direct radiation parameters
+  u1<-a+gma*(1-1/gref2)
+  u2<-a+gma*(1-gref2)
+  D1<-(a+gma+h)*(u1-h)*1/S1-(a+gma-h)*(u1+h)*S1
+  D2<-(u2+h)*1/S1-(u2-h)*S1
+  p5<- -s*(a+gma-kkd$kd)-gma*sstr
+  v1<-s-(p5*(a+gma+kkd$kd))/sig
+  v2<-s-gma-(p5/sig)*(u1+kkd$kd)
+  p6<-(1/D1)*((v1/S1)*(u1-h)-(a+gma-h)*S2*v2)
+  p7<-(-1/D1)*((v1*S1)*(u1+h)-(a+gma+h)*S2*v2)
+  p8<-sstr*(a+gma+kkd$kd)-gma*s
+  v3<-(sstr+gma*gref2-(p8/sig)*(u2-kkd$kd))*S2
+  p9<-(-1/D2)*((p8/(sig*S1))*(u2+h)+v3)
+  p10<-(1/D2)*(((p8*S1)/sig)*(u2-h)+v3)
+  # Tests
+  return(list(p1=p1,p2=p2,p3=p3,p4=p4,p5=p5,p6=p6,p7=p7,p8=p8,p9=p9,p10=p10,
+              h=h,sig=sig,gref2=gref2,kkd=kkd))
 }

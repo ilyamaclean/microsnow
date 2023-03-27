@@ -6,6 +6,7 @@
 \usage{
 .snowrad(
   weather,
+  snowdepth,
   dtm,
   hor,
   lat,
@@ -14,10 +15,10 @@
   x,
   snowalb,
   snowem,
-  merid = 0,
-  dst = 0,
   slr = NA,
-  apr = NA
+  apr = NA,
+  clump = 0,
+  clumpd = "daily"
 )
 }
 \description{

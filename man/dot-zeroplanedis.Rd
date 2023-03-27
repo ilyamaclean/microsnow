@@ -4,7 +4,7 @@
 \alias{.zeroplanedis}
 \title{Calculate zero plane displacement}
 \usage{
-.zeroplanedis(hgt, pai)
+.zeroplanedis(h, pai)
 }
 \description{
 Calculate zero plane displacement
